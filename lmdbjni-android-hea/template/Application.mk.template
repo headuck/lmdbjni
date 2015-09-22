@@ -1,0 +1,2 @@
+APP_PLATFORM := ${ndkAppPlatform}
+APP_ABI := ${ndkAppAbi}

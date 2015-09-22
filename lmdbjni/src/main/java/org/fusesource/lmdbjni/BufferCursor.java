@@ -1,5 +1,6 @@
 package org.fusesource.lmdbjni;
 
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -88,7 +89,7 @@ import static org.fusesource.lmdbjni.JNI.mdb_strerror;
  *
  * @author Kristoffer Sjögren
  */
-public class BufferCursor implements AutoCloseable {
+public class BufferCursor implements Closeable {
   private final Cursor cursor;
   private final ByteBuffer keyByteBuffer;
   private ByteBuffer valueByteBuffer;

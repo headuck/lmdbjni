@@ -1,0 +1,38 @@
+group = "com.headuck.lmdbjni"
+version = "0.4.4"
+description = "lmdbjni is a jni library for accessing lmdb."
+
+ext {
+    modulename = "lmdbjni-android-hea"
+    lmdbjniVersion = version
+    ndkAppPlatform = "android-8"
+    ndkAppAbi = "armeabi armeabi-v7a x86"
+    ndkDebug = "0"
+}
+
+ext {
+    srcJavaDir = "lmdbjni/src/main/java"
+    destJavaDir = file (modulename + "/src/main/java" ).absolutePath
+    srcNativeDir = "lmdbjni/src/main/native-package/src"
+    nativePkgDir = "src/main/native-package"
+    destNativeDir = file( modulename + "/" + nativePkgDir + "/jni" ).absolutePath
+}
+
+task copyJavaFiles (type: Copy) {
+    description = "Make a copy of java source into $modulename"
+    from srcJavaDir
+    into destJavaDir
+    include ('**/*.java')
+}
+
+task copyNativeFiles (type: Copy) {
+    description = "Make a copy of lmdb native source into $modulename"
+    from srcNativeDir
+    into destNativeDir
+    include ('**/*')
+}
+
+task build (dependsOn: [copyJavaFiles, copyNativeFiles]) {
+    dependsOn(modulename + ":build")
+}
+

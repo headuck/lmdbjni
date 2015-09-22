@@ -18,6 +18,7 @@
 
 package org.fusesource.lmdbjni;
 
+import java.io.Closeable;
 import static org.fusesource.lmdbjni.JNI.*;
 import static org.fusesource.lmdbjni.Util.*;
 
@@ -26,7 +27,7 @@ import static org.fusesource.lmdbjni.Util.*;
  *
  * @author <a href="http://hiramchirino.com">Hiram Chirino</a>
  */
-public class Env extends NativeObject implements AutoCloseable {
+public class Env extends NativeObject implements Closeable {
 
   public static String version() {
     return string(JNI.MDB_VERSION_STRING);
@@ -531,10 +532,14 @@ public class Env extends NativeObject implements AutoCloseable {
    * @see org.fusesource.lmdbjni.Env#open(String, int, int)
    */
   public Database openDatabase(String name, int flags) {
-    try (Transaction tx = createWriteTransaction()) {
+    Transaction tx = null;
+    try {
+      tx = createWriteTransaction();
       Database db= openDatabase(tx, name, flags);
       tx.commit();
       return db;
+    } finally {
+      if (tx != null) tx.close();
     }
   }
 

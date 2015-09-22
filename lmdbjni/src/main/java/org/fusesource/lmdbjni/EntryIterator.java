@@ -1,5 +1,6 @@
 package org.fusesource.lmdbjni;
 
+import java.io.Closeable;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
@@ -16,7 +17,7 @@ import java.util.NoSuchElementException;
  * }
  * </pre>
  */
-public class EntryIterator implements Iterator<Entry>, AutoCloseable {
+public class EntryIterator implements Iterator<Entry>, Closeable {
   private final Cursor cursor;
   private final IteratorType type;
   private final byte[] key;
