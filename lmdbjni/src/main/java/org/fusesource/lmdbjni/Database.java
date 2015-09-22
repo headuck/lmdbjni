@@ -22,6 +22,7 @@ package org.fusesource.lmdbjni;
 import org.fusesource.hawtjni.runtime.Callback;
 import org.fusesource.lmdbjni.EntryIterator.IteratorType;
 
+import java.io.Closeable;
 import java.util.Comparator;
 
 import static org.fusesource.lmdbjni.JNI.*;
@@ -33,7 +34,7 @@ import static org.fusesource.lmdbjni.Util.checkErrorCode;
  *
  * @author <a href="http://hiramchirino.com">Hiram Chirino</a>
  */
-public class Database extends NativeObject implements AutoCloseable {
+public class Database extends NativeObject implements Closeable {
 
   private final Env env;
 
@@ -69,8 +70,12 @@ public class Database extends NativeObject implements AutoCloseable {
    * @return Statistics for a database.
    */
   public Stat stat() {
-    try (Transaction tx = env.createReadTransaction()) {
+	Transaction tx = null;
+	try {
+      tx = env.createReadTransaction();
       return new Stat(stat(tx));
+    } finally {
+      if (tx != null) tx.close();
     }
   }
 
@@ -85,9 +90,13 @@ public class Database extends NativeObject implements AutoCloseable {
    * @see org.fusesource.lmdbjni.Database#drop(Transaction, boolean)
    */
   public void drop(boolean delete) {
-    try (Transaction tx = env.createWriteTransaction()) {
+    Transaction tx = null;
+    try {
+      tx = env.createWriteTransaction();
       drop(tx, delete);
       tx.commit();
+    } finally {
+      if (tx != null) tx.close();
     }
   }
 
@@ -113,8 +122,12 @@ public class Database extends NativeObject implements AutoCloseable {
    */
   public int get(DirectBuffer key, DirectBuffer value) {
     checkArgNotNull(key, "key");
-    try (Transaction tx = env.createReadTransaction()) {
+    Transaction tx = null;
+    try {
+      tx = env.createReadTransaction();
       return get(tx, key, value);
+    } finally {
+      if (tx != null) tx.close();
     }
   }
 
@@ -156,8 +169,12 @@ public class Database extends NativeObject implements AutoCloseable {
    */
   public byte[] get(byte[] key) {
     checkArgNotNull(key, "key");
-    try (Transaction tx = env.createReadTransaction()) {
+    Transaction tx = null;
+    try {
+      tx = env.createReadTransaction();
       return get(tx, key);
+    } finally {
+      if (tx != null) tx.close();
     }
   }
 
@@ -314,10 +331,14 @@ public class Database extends NativeObject implements AutoCloseable {
    */
   public int put(DirectBuffer key, DirectBuffer value, int flags) {
     checkArgNotNull(key, "key");
-    try (Transaction tx = env.createWriteTransaction()) {
+    Transaction tx = null;
+    try {
+      tx = env.createWriteTransaction();
       int ret = put(tx, key, value, flags);
       tx.commit();
       return ret;
+    } finally {
+      if (tx != null) tx.close();
     }
   }
 
@@ -357,10 +378,14 @@ public class Database extends NativeObject implements AutoCloseable {
    */
   public byte[] put(byte[] key, byte[] value, int flags) {
     checkArgNotNull(key, "key");
-    try (Transaction tx = env.createWriteTransaction()) {
+    Transaction tx = null;
+    try {
+      tx = env.createWriteTransaction();
       byte[] ret = put(tx, key, value, flags);
       tx.commit();
       return ret;
+    } finally {
+      if (tx != null) tx.close();
     }
   }
 
@@ -434,9 +459,33 @@ public class Database extends NativeObject implements AutoCloseable {
     }
   }
 
-  private byte[] put(Transaction tx, NativeBuffer keyBuffer, NativeBuffer valueBuffer, int flags) {
+
+  /*
+   *
+   * Store items into a database.
+   *
+   *
+   * The following 4 functions expose NativeBuffer methods for efficiency in bulk inserts
+   *
+   *
+   */
+
+  public byte[] put(Transaction tx, NativeBuffer keyBuffer, NativeBuffer valueBuffer) {
+    return put(tx, new Value(keyBuffer), new Value(valueBuffer), 0);
+  }
+
+  public byte[] put(Transaction tx, NativeBuffer keyBuffer, NativeBuffer valueBuffer, int flags) {
     return put(tx, new Value(keyBuffer), new Value(valueBuffer), flags);
   }
+
+  public byte[] put(Transaction tx, NativeBuffer keyBuffer, int keyLength, NativeBuffer valueBuffer, int valueLength) {
+    return put(tx, new Value(keyBuffer, keyLength), new Value(valueBuffer, valueLength), 0);
+  }
+
+  public byte[] put(Transaction tx, NativeBuffer keyBuffer, int keyLength, NativeBuffer valueBuffer, int valueLength, int flags) {
+    return put(tx, new Value(keyBuffer, keyLength), new Value(valueBuffer, valueLength), flags);
+  }
+
 
   private byte[] put(Transaction tx, Value keySlice, Value valueSlice, int flags) {
     int rc = mdb_put(tx.pointer(), pointer(), keySlice, valueSlice, flags);
@@ -470,10 +519,14 @@ public class Database extends NativeObject implements AutoCloseable {
    */
   public boolean delete(DirectBuffer key, DirectBuffer value) {
     checkArgNotNull(key, "key");
-    try (Transaction tx = env.createWriteTransaction()) {
+    Transaction tx = null;
+    try {
+      tx = env.createWriteTransaction();
       boolean ret = delete(tx, key, value);
       tx.commit();
       return ret;
+    } finally {
+      if (tx != null) tx.close();
     }
   }
 
@@ -503,10 +556,14 @@ public class Database extends NativeObject implements AutoCloseable {
    */
   public boolean delete(byte[] key, byte[] value) {
     checkArgNotNull(key, "key");
-    try (Transaction tx = env.createWriteTransaction()) {
+    Transaction tx = null;
+    try {
+      tx = env.createWriteTransaction();
       boolean ret = delete(tx, key, value);
       tx.commit();
       return ret;
+    } finally {
+        if (tx != null) tx.close();
     }
   }
 

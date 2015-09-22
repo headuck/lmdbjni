@@ -18,7 +18,7 @@
 
 package org.fusesource.lmdbjni;
 
-import java.nio.charset.StandardCharsets;
+import java.io.UnsupportedEncodingException;
 
 import static org.fusesource.lmdbjni.JNI.*;
 
@@ -214,17 +214,27 @@ public class Constants {
   /** Position at first key greater than or equal to specified key. */
   public static final SeekOp RANGE = SeekOp.RANGE;
 
+  private static final String UTF8_CHARSET = "UTF-8";
+
   public static byte[] bytes(String value) {
     if (value == null) {
       return null;
     }
-    return value.getBytes(StandardCharsets.UTF_8);
+    try {
+      return value.getBytes(UTF8_CHARSET);
+    } catch (UnsupportedEncodingException e) {
+      throw new RuntimeException ("Error getting byte string", e);
+    }
   }
 
   public static String string(byte value[]) {
     if (value == null) {
       return null;
     }
-    return new String(value, StandardCharsets.UTF_8);
+    try {
+      return new String(value, UTF8_CHARSET);
+    } catch (UnsupportedEncodingException e) {
+      throw new RuntimeException ("Error getting string", e);
+    }
   }
 }

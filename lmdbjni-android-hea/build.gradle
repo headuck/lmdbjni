@@ -1,0 +1,85 @@
+apply plugin: 'java'
+
+archivesBaseName = modulename
+version = parent.version
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'org.fusesource.hawtjni', name: 'hawtjni-runtime', version: '1.9'
+    testCompile group: 'com.google.guava', name:'guava', version:'18.0'
+    testCompile group: 'junit', name: 'junit', version: '4+'
+}
+
+configurations { hawtjni }
+
+dependencies {
+    hawtjni group: 'org.fusesource.hawtjni', name: 'hawtjni-generator', version: '1.9'
+}
+
+task jniGen (dependsOn: 'jar', type: JavaExec) {
+
+    ext {
+        jarFile = jar.archivePath
+    }
+
+    inputs.file file(jarFile)
+    outputs.dir destNativeDir
+
+    main = 'org.fusesource.hawtjni.generator.HawtJNI'
+
+    classpath = configurations.hawtjni
+
+    args '-n', 'lmdbjni'
+    args '-o', destNativeDir
+    args jarFile
+}
+
+task copyTemplates(type: Copy) {
+    description = 'Copy and expand template for jni directory'
+    from ('template') {
+        include ('Android.mk')
+    }
+    from ('template') {
+        include ('Application.mk.template')
+        include ('config.h.template')
+        expand (project: project, ndkAppPlatform: ndkAppPlatform, ndkAppAbi: ndkAppAbi)
+        rename { String fileName ->
+            fileName.replace('.template', '')
+        }
+    }
+    into destNativeDir
+}
+
+task ndkBuild(dependsOn: [copyTemplates, jniGen] ,  type: Exec) {
+    ext {
+        ndkHome = "$System.env.NDK_HOME"
+        ndkOut = project.buildDir.absolutePath + "/obj"
+        ndkLibsOut = project.buildDir.absolutePath + "/libs"
+    }
+
+    inputs.dir destNativeDir
+    outputs.files { project.fileTree (
+        dir: file (ndkLibsOut),
+        includes: ['**/*.so']
+    )}
+
+    if (ndkHome == "null") {
+        println '************************************************************************'
+        println "Please set environment variable NDK_HOME for the NDK directory" 
+        println '************************************************************************'
+        throw new StopExecutionException("Environment variable NDK_HOME not set")
+    }
+    environment = [:]
+    environment['PATH'] = System.getenv("PATH") + ":" + ndkHome
+    commandLine "$ndkHome/ndk-build",
+           '-C', file(nativePkgDir).absolutePath ,
+           '-j', Runtime.runtime.availableProcessors() ,
+           "NDK_DEBUG=$ndkDebug",
+           "NDK_LIBS_OUT=$ndkLibsOut",
+           "NDK_OUT=$ndkOut"
+}
+
+assemble.dependsOn ndkBuild

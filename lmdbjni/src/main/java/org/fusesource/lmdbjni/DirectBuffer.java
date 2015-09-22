@@ -20,7 +20,7 @@ import sun.misc.Unsafe;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
+import java.io.UnsupportedEncodingException;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 
@@ -55,20 +55,27 @@ public class DirectBuffer {
 
   private static final Unsafe UNSAFE;
 
+  private static final String UTF8_CHARSET = "UTF-8";
+
   static {
     try {
       final PrivilegedExceptionAction<Unsafe> action = new PrivilegedExceptionAction<Unsafe>() {
         public Unsafe run() throws Exception {
-          final Field field = Unsafe.class.getDeclaredField("theUnsafe");
+          Field field;
+          if (!Util.isAndroid) {
+            field = Unsafe.class.getDeclaredField("theUnsafe");
+          } else {
+            field = Unsafe.class.getDeclaredField("THE_ONE");
+          }
           field.setAccessible(true);
           return (Unsafe) field.get(null);
         }
       };
-
       UNSAFE = AccessController.doPrivileged(action);
     } catch (final Exception ex) {
       throw new RuntimeException(ex);
     }
+
   }
 
   /**
@@ -83,7 +90,7 @@ public class DirectBuffer {
   public static final String DISABLE_BOUNDS_CHECKS_PROP_NAME = "directbuffer.disable.bounds.checks";
   public static final boolean SHOULD_BOUNDS_CHECK = !Boolean.getBoolean(DISABLE_BOUNDS_CHECKS_PROP_NAME);
 
-  private static final byte[] NULL_BYTES = "null".getBytes(StandardCharsets.UTF_8);
+  private static final byte[] NULL_BYTES = GetUTF8Bytes("null");
   private static final ByteOrder NATIVE_BYTE_ORDER = ByteOrder.nativeOrder();
   private static final long ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
 
@@ -92,6 +99,16 @@ public class DirectBuffer {
   private long addressOffset;
 
   private int capacity;
+
+  static private byte[] GetUTF8Bytes (String str) {
+	byte[] bytes;
+    try {
+      bytes = str.getBytes(UTF8_CHARSET);
+    } catch (UnsupportedEncodingException e) {
+      throw new RuntimeException ("Error getting byte string", e);
+    }
+    return bytes;
+  }
 
   /**
    * Attach a view to a direct {@link java.nio.ByteBuffer}.
@@ -597,13 +614,19 @@ public class DirectBuffer {
 
   public String getStringUtf8(final int offset, final int length) {
     final byte[] stringInBytes = new byte[length];
-    getBytes(offset + SIZE_OF_INT, stringInBytes);
+    String retString;
 
-    return new String(stringInBytes, StandardCharsets.UTF_8);
+    getBytes(offset + SIZE_OF_INT, stringInBytes);
+    try {
+      retString = new String(stringInBytes, UTF8_CHARSET);
+    } catch (UnsupportedEncodingException e) {
+      throw new RuntimeException ("Error getting string", e);
+    }
+    return retString;
   }
 
   public int putStringUtf8(final int offset, final String value, final ByteOrder byteOrder, final int maxEncodedSize) {
-    final byte[] bytes = value != null ? value.getBytes(StandardCharsets.UTF_8) : NULL_BYTES;
+    final byte[] bytes = value != null ? GetUTF8Bytes(value) : NULL_BYTES;
     if (bytes.length > maxEncodedSize) {
       throw new IllegalArgumentException("Encoded string larger than maximum size: " + maxEncodedSize);
     }
@@ -616,13 +639,18 @@ public class DirectBuffer {
 
   public String getStringWithoutLengthUtf8(final int offset, final int length) {
     final byte[] stringInBytes = new byte[length];
+    String retString;
     getBytes(offset, stringInBytes);
-
-    return new String(stringInBytes, StandardCharsets.UTF_8);
+    try {
+      retString = new String(stringInBytes, UTF8_CHARSET);
+    } catch (UnsupportedEncodingException e) {
+      throw new RuntimeException ("Error getting string", e);
+    }
+    return retString;
   }
 
   public int putStringWithoutLengthUtf8(final int offset, final String value) {
-    final byte[] bytes = value != null ? value.getBytes(StandardCharsets.UTF_8) : NULL_BYTES;
+    final byte[] bytes = value != null ? GetUTF8Bytes(value) : NULL_BYTES;
     putBytes(offset, bytes);
 
     return bytes.length;

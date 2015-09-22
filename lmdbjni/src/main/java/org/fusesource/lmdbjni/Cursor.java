@@ -18,7 +18,7 @@
 
 package org.fusesource.lmdbjni;
 
-
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 
 import static org.fusesource.lmdbjni.JNI.*;
@@ -30,16 +30,21 @@ import static org.fusesource.lmdbjni.Util.checkErrorCode;
  *
  * @author <a href="http://hiramchirino.com">Hiram Chirino</a>
  */
-public class Cursor extends NativeObject implements AutoCloseable {
-  final DirectBuffer buffer;
-  final long bufferAddress;
+public class Cursor extends NativeObject implements Closeable {
+  DirectBuffer buffer;
+  long bufferAddress;
   final boolean isReadOnly;
 
   Cursor(long self, boolean isReadOnly) {
     super(self);
     this.isReadOnly = isReadOnly;
-    this.buffer = new DirectBuffer(ByteBuffer.allocateDirect(Unsafe.ADDRESS_SIZE * 4));
-    this.bufferAddress = buffer.addressOffset();
+  }
+
+  private void initBuffer () {
+    if (buffer == null) {
+      this.buffer = new DirectBuffer(ByteBuffer.allocateDirect(Unsafe.ADDRESS_SIZE * 4));
+      this.bufferAddress = buffer.addressOffset();
+    }
   }
 
   /**
@@ -105,6 +110,7 @@ public class Cursor extends NativeObject implements AutoCloseable {
    */
   public int position(DirectBuffer key, DirectBuffer value, GetOp op) {
     checkArgNotNull(op, "op");
+    initBuffer();
     int rc = mdb_cursor_get_address(pointer(), bufferAddress, bufferAddress + 2 * Unsafe.ADDRESS_SIZE, op.getValue());
     if (rc == MDB_NOTFOUND) {
       return rc;
@@ -122,6 +128,7 @@ public class Cursor extends NativeObject implements AutoCloseable {
     checkArgNotNull(key, "key");
     checkArgNotNull(value, "value");
     checkArgNotNull(op, "op");
+    initBuffer();
     Unsafe.putLong(bufferAddress, 0, key.capacity());
     Unsafe.putLong(bufferAddress, 1, key.addressOffset());
 
@@ -240,6 +247,7 @@ public class Cursor extends NativeObject implements AutoCloseable {
   public int put(DirectBuffer key, DirectBuffer value, int flags) {
     checkArgNotNull(key, "key");
     checkArgNotNull(value, "value");
+    initBuffer();
     Unsafe.putLong(bufferAddress, 0, key.capacity());
     Unsafe.putLong(bufferAddress, 1, key.addressOffset());
     Unsafe.putLong(bufferAddress, 2, value.capacity());

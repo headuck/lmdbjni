@@ -1,10 +1,12 @@
 package org.fusesource.lmdbjni;
 
-import java.nio.charset.StandardCharsets;
+import java.io.UnsupportedEncodingException;
+
 
 public class ByteString {
   private String string;
   private byte[] bytes;
+  private static final String UTF8_CHARSET = "UTF-8";
 
   public ByteString(String string) {
     this.string = string;
@@ -16,14 +18,22 @@ public class ByteString {
 
   public String getString() {
     if (string == null) {
-      string = new String(bytes, StandardCharsets.UTF_8);
+      try {
+        string = new String(bytes, UTF8_CHARSET);
+      } catch (UnsupportedEncodingException e) {
+        throw new RuntimeException ("Error getting string", e);
+      }
     }
     return string;
   }
 
   public byte[] getBytes() {
     if (bytes == null) {
-      bytes = string.getBytes(StandardCharsets.UTF_8);
+      try {
+        bytes = string.getBytes(UTF8_CHARSET);
+      } catch (UnsupportedEncodingException e) {
+        throw new RuntimeException ("Error getting byte string", e);
+      }
     }
     return bytes;
   }

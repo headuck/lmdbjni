@@ -35,6 +35,10 @@ class Value extends JNI.MDB_val {
     this(buffer.pointer(), buffer.capacity());
   }
 
+  public Value(NativeBuffer buffer, long length) {
+    this(buffer.pointer(), length);
+  }
+
   public static Value create(NativeBuffer buffer) {
     if (buffer == null) {
       return null;
