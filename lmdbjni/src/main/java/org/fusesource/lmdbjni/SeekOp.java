@@ -30,7 +30,13 @@ public enum SeekOp {
   KEY(MDB_SET_KEY),
 
   /** Position at first key greater than or equal to specified key. */
-  RANGE(MDB_SET_RANGE);
+  RANGE(MDB_SET_RANGE),
+
+  /** Position at key/data pair. Only for MDB_DUPSORT. */
+  BOTH(MDB_GET_BOTH),
+
+  /** Position at position at key, nearest data.  Only for MDB_DUPSORT. */
+  BOTH_RANGE(MDB_GET_BOTH_RANGE);
 
   private final int value;
 

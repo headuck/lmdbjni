@@ -18,7 +18,7 @@
 
 package org.fusesource.lmdbjni;
 
-import java.nio.charset.Charset;
+import java.io.UnsupportedEncodingException;
 
 import static org.fusesource.lmdbjni.JNI.mdb_strerror;
 import static org.fusesource.lmdbjni.JNI.strlen;
@@ -30,12 +30,19 @@ import static org.fusesource.lmdbjni.JNI.strlen;
  */
 class Util {
   public static final boolean isAndroid = isAndroid();
+  private static final String UTF8_CHARSET = "UTF-8";
 
   public static String string(long ptr) {
     if (ptr == 0)
       return null;
-    return new String(NativeBuffer.create(ptr, strlen(ptr)).toByteArray(),
-      Charset.defaultCharset());
+    String str;
+    try {
+      str = new String(NativeBuffer.create(ptr, strlen(ptr)).toByteArray(),
+          UTF8_CHARSET);
+    } catch (UnsupportedEncodingException e) {
+      str = "";
+    }
+    return str;
   }
 
   public static void checkErrorCode(int rc) {

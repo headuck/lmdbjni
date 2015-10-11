@@ -149,6 +149,7 @@ public class Cursor extends NativeObject implements Closeable {
 
   /**
    * Same as get but with a seek operation.
+   * For GetOp.KEY and GetOp.RANGE only
    *
    * @see org.fusesource.lmdbjni.Cursor#get(GetOp)
    */
@@ -170,6 +171,35 @@ public class Cursor extends NativeObject implements Closeable {
     }
 
   }
+
+  /**
+   * Same as get and seek but pass in the value in addition to the key.
+   * For GetOp.BOTH and GetOp.BOTH_RANGE only
+   *
+   * @see org.fusesource.lmdbjni.Cursor#get(GetOp)
+   */
+  public Entry seek(SeekOp op, byte[] key, byte[] value) {
+    checkArgNotNull(key, "key");
+    checkArgNotNull(value, "value");
+    checkArgNotNull(op, "op");
+    NativeBuffer keyBuffer = NativeBuffer.create(key);
+    NativeBuffer valueBuffer = NativeBuffer.create(value);
+    try {
+      Value keyValue = new Value(keyBuffer);
+      Value valueVal = new Value(valueBuffer);
+      int rc = mdb_cursor_get(pointer(), keyValue, valueVal, op.getValue());
+      if (rc == MDB_NOTFOUND) {
+        return null;
+      }
+      checkErrorCode(rc);
+      return new Entry(keyValue.toByteArray(), valueVal.toByteArray());
+    } finally {
+      keyBuffer.delete();
+      valueBuffer.delete();
+    }
+
+  }
+
   /**
    * <p>
    *   Store by cursor.
