@@ -1,2 +1,10 @@
 #!/bin/bash
-$NDK/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin/arm-linux-androideabi-gcc --sysroot=$NDK/platforms/android-19/arch-arm -DMDB_DSYNC=O_SYNC $@
+
+# ARM
+$NDK/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin/arm-linux-androideabi-gcc --sysroot=$NDK/platforms/android-21/arch-arm -DMDB_DSYNC=O_SYNC -DMDB_USE_ROBUST=0 $@
+
+# MIPS
+# $NDK/toolchains/mips64el-linux-android-4.9/prebuilt/linux-x86_64/bin/mips64el-linux-android-gcc --sysroot=$NDK/platforms/android-21/arch-mips64 -DMDB_DSYNC=O_SYNC -DMDB_USE_ROBUST=0 $@
+
+# x86_64
+# $NDK/toolchains/x86_64-4.9/prebuilt/linux-x86_64/bin/x86_64-linux-android-gcc --sysroot=$NDK/platforms/android-21/arch-x86_64 -DMDB_DSYNC=O_SYNC -DMDB_USE_ROBUST=0 $@

@@ -18,3 +18,5 @@ release.properties
 cov-int
 *.tgz
 .gradle
+dependency-reduced-pom.xml
+

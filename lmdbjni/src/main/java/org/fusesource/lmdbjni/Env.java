@@ -555,6 +555,17 @@ public class Env extends NativeObject implements Closeable {
     return mdb_env_get_maxkeysize(pointer());
   }
 
+  /**
+   * Check for stale entries in the reader lock table.
+   *
+   * @return Number of stale slots that were cleared.
+   */
+  public int readerCheck() {
+    int[] staleSlots = new int[1];
+    checkErrorCode(JNI.mdb_reader_check(pointer(), staleSlots));
+    return staleSlots[0];
+  }
+
   private void checkOpen() {
     if (!open) {
       throw new LMDBException("Environment not open yet.");

@@ -62,15 +62,48 @@ public class BufferCursorTest {
       // go to far
       assertFalse(cursor.prev());
       assertFalse(cursor.prev());
-      assertThat(cursor.keyLong(0), is(0L));
+      assertThat(cursor.keyLength(), is(0));
+      assertThat(cursor.valLength(), is(0));
 
-      assertTrue(cursor.seek(new byte[]{1}));
+      // Position cursor at key >= 0x00
+      assertTrue(cursor.seekRange(new byte[]{0}));
+      assertThat(cursor.keyLength(), is(8));
+      assertThat(cursor.keyLong(0), is(0L));
+      assertThat(cursor.valLength(), is(8));
+
+      // Position cursor at key = 0x00
+      cursor.keyWriteByte(0);
+      assertFalse(cursor.seekKey());
+      assertThat(cursor.keyLength(), is(0));
+      assertThat(cursor.valLength(), is(0));
+
+      // Position cursor at key >= 0x01
+      assertTrue(cursor.seekRange(new byte[]{1}));
+      assertThat(cursor.keyLength(), is(1));
       assertThat(cursor.keyByte(0), is((byte) 1));
 
-      assertTrue(cursor.seek(Bytes.fromLong(1)));
+      cursor.keyWriteByte(1);
+      assertTrue(cursor.seekKey());
+      assertThat(cursor.keyByte(0), is((byte) 1));
+
+      assertTrue(cursor.seekRange(Bytes.fromLong(1)));
       assertThat(cursor.keyLong(0), is(1L));
 
-      assertTrue(cursor.seek(new byte[]{1}));
+      cursor.keyWriteByte(1);
+      assertTrue(cursor.seekKey());
+      assertThat(cursor.keyByte(0), is((byte) 1));
+
+      cursor.keyWriteLong(1);
+      assertTrue(cursor.seekKey());
+      assertThat(cursor.keyLong(0), is(1L));
+
+      cursor.keyWriteByte(0);
+      assertFalse(cursor.seekKey());
+
+      cursor.keyWriteLong(keys.size() + 1);
+      assertFalse(cursor.seekKey());
+
+      assertTrue(cursor.seekRange(new byte[]{1}));
       assertThat(cursor.keyByte(0), is((byte) 1));
       assertTrue(cursor.next());
       assertThat(cursor.keyByte(0), is((byte) 2));
@@ -83,10 +116,10 @@ public class BufferCursorTest {
       assertThat(cursor.keyByte(0), is((byte) 8));
       // go too far
       assertTrue(cursor.next());
-      assertFalse(cursor.next());
       assertThat(cursor.keyByte(0), is((byte) 9));
+      assertFalse(cursor.next());
 
-      assertTrue(cursor.seek(new byte[]{5}));
+      assertTrue(cursor.seekRange(new byte[]{5}));
       assertThat(cursor.keyByte(0), is((byte) 5));
       assertThat(cursor.valByte(0), is((byte) 5));
 
@@ -110,6 +143,162 @@ public class BufferCursorTest {
       }
     }
     tx.commit();
+  }
+
+  @Test
+  public void testUnpositionedCursor() {
+    // Next on new cursor points to the first entry
+    try (Transaction tx = env.createReadTransaction()) {
+      try (BufferCursor cursor = db.bufferCursor(tx)) {
+        // Key is empty when cursor is not positionned
+        assertThat(cursor.keyLength(), is(0));
+        // Value is empty when cursor is not positionned
+        assertThat(cursor.valLength(), is(0));
+        // We get an IndexOutOfBoundsException when we try to access unpositioned key data
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyByte(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyShort(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyInt(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyLong(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyFloat(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyDouble(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyUtf8(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyBytes();
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyBytes(0, 1);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.keyDirectBuffer();
+          }
+        });
+        // We get an IndexOutOfBoundsException when we try to access unpositioned value data
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valByte(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valShort(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valInt(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valLong(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valFloat(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valDouble(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valUtf8(0);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valBytes();
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valBytes(0, 1);
+          }
+        });
+        assertIndexOutOfBounds(new Runnable() {
+          @Override
+          public void run() {
+            cursor.valDirectBuffer();
+          }
+        });
+      }
+    }
+
+    // Next on new cursor points to the first entry
+    try (Transaction tx = env.createReadTransaction()) {
+      try (BufferCursor cursor = db.bufferCursor(tx)) {
+        assertTrue(cursor.next());
+        assertThat(cursor.keyLength(), is(8));
+        assertThat(cursor.keyLong(0), is(0L));
+        assertThat(cursor.valLength(), is(8));
+        assertThat(cursor.valLong(0), is(0L));
+      }
+    }
+    // Prev on new cursor points to the first entry
+    try (Transaction tx = env.createReadTransaction()) {
+      try (BufferCursor cursor = db.bufferCursor(tx)) {
+        assertTrue(cursor.prev());
+        assertThat(cursor.keyLength(), is(1));
+        assertThat(cursor.keyByte(0), is((byte) 9));
+        assertThat(cursor.valLength(), is(1));
+        assertThat(cursor.valByte(0), is((byte) 9));
+      }
+    }
   }
 
   @Test
@@ -140,7 +329,7 @@ public class BufferCursorTest {
   public void testOverwrite() {
     Transaction tx = env.createWriteTransaction();
     try (BufferCursor cursor = db.bufferCursor(tx)) {
-      assertTrue(cursor.seek(Bytes.fromLong(0)));
+      assertTrue(cursor.seekRange(Bytes.fromLong(0)));
       cursor.delete();
       assertTrue(cursor.keyWriteLong(0).valWriteByte(100).overwrite());
       assertTrue(cursor.first());
@@ -211,7 +400,18 @@ public class BufferCursorTest {
     value = new DirectBuffer(ByteBuffer.allocateDirect(10));
     try (Transaction tx = env.createReadTransaction()) {
       try (BufferCursor cursor = db.bufferCursor(tx, key, value)) {
-        cursor.last();
+        assertTrue(cursor.last());
+        assertThat(cursor.keyUtf8(0).getString(), is("a"));
+        assertThat(cursor.valUtf8(0).getString(), is("a"));
+        assertThat(cursor.seekKey(), is(true));
+        assertThat(cursor.keyUtf8(0).getString(), is("a"));
+        assertThat(cursor.valUtf8(0).getString(), is("a"));
+        cursor.setWriteMode();
+        // Position at key = 'Z\0'
+        key.putString(0, new ByteString("Z"));
+        assertThat(cursor.seekKey(), is(false));
+        // Position at key >= 'Z\0'
+        assertThat(cursor.seekRange(), is(true));
         assertThat(cursor.keyUtf8(0).getString(), is("a"));
         assertThat(cursor.valUtf8(0).getString(), is("a"));
       }
@@ -223,12 +423,12 @@ public class BufferCursorTest {
   public void testPut() {
     try (Transaction tx = env.createWriteTransaction()) {
       try (BufferCursor cursor = db.bufferCursor(tx)) {
-        assertTrue(cursor.seek(new byte[]{1}));
+        assertTrue(cursor.seekRange(new byte[]{1}));
         assertFalse(cursor
           .keyWriteByte(1)
           .valWriteByte(100)
           .put());
-        assertTrue(cursor.seek(new byte[]{1}));
+        assertTrue(cursor.seekRange(new byte[]{1}));
         assertTrue(cursor.first());
         assertThat(cursor.keyLong(0), is(0L));
         assertThat(cursor.valLong(0), is(0L));
@@ -236,7 +436,7 @@ public class BufferCursorTest {
           .keyWriteByte(111)
           .valWriteByte(121)
           .put());
-        assertTrue(cursor.seek(new byte[]{111}));
+        assertTrue(cursor.seekRange(new byte[]{111}));
         assertThat(cursor.keyByte(0), is((byte) 111));
         assertThat(cursor.valByte(0), is((byte) 121));
       }
@@ -244,7 +444,7 @@ public class BufferCursorTest {
     }
     try (Transaction tx = env.createWriteTransaction()) {
       try (BufferCursor cursor = db.bufferCursor(tx)) {
-        assertTrue(cursor.seek(new byte[]{111}));
+        assertTrue(cursor.seekRange(new byte[]{111}));
         assertThat(cursor.keyByte(0), is((byte) 111));
         assertThat(cursor.valByte(0), is((byte) 121));
       }
@@ -290,20 +490,28 @@ public class BufferCursorTest {
       try (BufferCursor cursor = db.bufferCursor(tx)) {
         cursor.first();
         cursor.keyWriteByte(111)
-          .keyWriteInt(1)
-          .keyWriteLong(2)
+          .keyWriteBoolean(true)
+          .keyWriteShort((short) 1)
+          .keyWriteInt(2)
+          .keyWriteLong(3)
           .keyWriteFloat(1.0f)
           .keyWriteDouble(2.0)
           .keyWriteBytes(new byte[]{1, 2, 3})
+          .keyWriteBytes(new byte[]{4, 5, 6}, 1, 1)
           .keyWriteUtf8(new ByteString("abc"))
           .valWriteByte(112)
+          .valWriteBoolean(false)
+          .valWriteShort((short) 2)
           .valWriteInt(3)
           .valWriteLong(4)
           .valWriteFloat(5.0f)
           .valWriteDouble(6.0)
           .valWriteBytes(new byte[]{1, 2, 3})
-          .valWriteUtf8("cba")
-          .overwrite();
+          .valWriteBytes(new byte[]{4, 5, 6}, 1, 1)
+          .valWriteUtf8("cba");
+        assertThat(cursor.keyWriteIndex(), is(36));
+        assertThat(cursor.valWriteIndex(), is(36));
+        cursor.overwrite();
       }
       tx.commit();
     }
@@ -312,21 +520,27 @@ public class BufferCursorTest {
       try (BufferCursor cursor = db.bufferCursor(tx)) {
         cursor.last();
         assertThat(cursor.keyByte(0), is((byte)111));
-        assertThat(cursor.keyInt(1), is(1));
-        assertThat(cursor.keyLong(5), is(2L));
-        assertThat(cursor.keyFloat(13), is(1.0f));
-        assertThat(cursor.keyDouble(17), is(2.0));
-        assertArrayEquals(cursor.keyBytes(25, 3), new byte[]{1, 2, 3});
-        assertThat(cursor.keyUtf8(28).getString(), is("abc"));
-        assertThat(cursor.keyDirectBuffer().getDouble(17, ByteOrder.BIG_ENDIAN), is(2.0d));
+        assertThat(cursor.keyBoolean(1), is(true));
+        assertThat(cursor.keyShort(2), is((short) 1));
+        assertThat(cursor.keyInt(4), is(2));
+        assertThat(cursor.keyLong(8), is(3L));
+        assertThat(cursor.keyFloat(16), is(1.0f));
+        assertThat(cursor.keyDouble(20), is(2.0));
+        assertArrayEquals(cursor.keyBytes(28, 3), new byte[]{1, 2, 3});
+        assertArrayEquals(cursor.keyBytes(31, 1), new byte[]{5});
+        assertThat(cursor.keyUtf8(32).getString(), is("abc"));
+        assertThat(cursor.keyDirectBuffer().getDouble(20, ByteOrder.BIG_ENDIAN), is(2.0d));
         assertThat(cursor.valByte(0), is((byte) 112));
-        assertThat(cursor.valInt(1), is(3));
-        assertThat(cursor.valLong(5), is(4L));
-        assertThat(cursor.valFloat(13), is(5.0f));
-        assertThat(cursor.valDouble(17), is(6.0));
-        assertArrayEquals(cursor.valBytes(25, 3), new byte[]{1, 2, 3});
-        assertThat(cursor.valUtf8(28), is(new ByteString("cba")));
-        assertThat(cursor.valDirectBuffer().getDouble(17, ByteOrder.BIG_ENDIAN), is(6.0d));
+        assertThat(cursor.valBoolean(1), is(false));
+        assertThat(cursor.valShort(2), is((short) 2));
+        assertThat(cursor.valInt(4), is(3));
+        assertThat(cursor.valLong(8), is(4L));
+        assertThat(cursor.valFloat(16), is(5.0f));
+        assertThat(cursor.valDouble(20), is(6.0));
+        assertArrayEquals(cursor.valBytes(28, 3), new byte[]{1, 2, 3});
+        assertArrayEquals(cursor.valBytes(31, 1), new byte[]{5});
+        assertThat(cursor.valUtf8(32), is(new ByteString("cba")));
+        assertThat(cursor.valDirectBuffer().getDouble(20, ByteOrder.BIG_ENDIAN), is(6.0d));
       }
       tx.commit();
     }
@@ -346,6 +560,24 @@ public class BufferCursorTest {
         cursor.last();
         assertThat(cursor.keyByte(0), is((byte) 111));
         assertThat(cursor.valByte(0), is((byte) 112));
+      }
+    }
+  }
+
+  @Test
+  public void testValueBufferExpansionShort() {
+    try (Transaction tx = env.createWriteTransaction()) {
+      try (BufferCursor cursor = db.bufferCursor(tx, 1)) {
+        cursor.first();
+        cursor.keyWriteByte(111).valWriteShort((short) 3).overwrite();
+      }
+      tx.commit();
+    }
+    try (Transaction tx = env.createReadTransaction()) {
+      try (BufferCursor cursor = db.bufferCursor(tx)) {
+        cursor.last();
+        assertThat(cursor.keyByte(0), is((byte) 111));
+        assertThat(cursor.valShort(0), is((short) 3));
       }
     }
   }
@@ -562,16 +794,18 @@ public class BufferCursorTest {
   public void testWriteToReadOnlyBuffer() {
     try (Transaction tx = env.createReadTransaction()) {
       try (final BufferCursor cursor = db.bufferCursor(tx)) {
-        assertEACCES(new Runnable() { public void run() { cursor.keyWriteByte(0); }});
-        assertEACCES(new Runnable() { public void run() { cursor.keyWriteInt(0); }});
-        assertEACCES(new Runnable() { public void run() { cursor.keyWriteLong(0); }});
-        assertEACCES(new Runnable() { public void run() { cursor.keyWriteFloat(0); }});
-        assertEACCES(new Runnable() { public void run() { cursor.keyWriteDouble(0); }});
-        assertEACCES(new Runnable() { public void run() { cursor.keyWriteUtf8(""); }});
-        assertEACCES(new Runnable() { public void run() { cursor.keyWriteUtf8(new ByteString("")); }});
-        assertEACCES(new Runnable() { public void run() { cursor.keyWriteBytes(new byte[]{0});}});
-        assertEACCES(new Runnable() { public void run() { cursor.keyWrite(new DirectBuffer(new byte[0]), 0);}});
+        cursor.keyWriteByte(0);
+        cursor.keyWriteShort((short) 0);
+        cursor.keyWriteInt(0);
+        cursor.keyWriteLong(0);
+        cursor.keyWriteFloat(0);
+        cursor.keyWriteDouble(0);
+        cursor.keyWriteUtf8("");
+        cursor.keyWriteUtf8(new ByteString(""));
+        cursor.keyWriteBytes(new byte[]{0});
+        cursor.keyWrite(new DirectBuffer(new byte[0]), 0);
         assertEACCES(new Runnable() { public void run() { cursor.valWriteByte(0); }});
+        assertEACCES(new Runnable() { public void run() { cursor.valWriteShort((short) 0); }});
         assertEACCES(new Runnable() { public void run() { cursor.valWriteInt(0); }});
         assertEACCES(new Runnable() { public void run() { cursor.valWriteLong(0); }});
         assertEACCES(new Runnable() { public void run() { cursor.valWriteFloat(0); }});
@@ -592,6 +826,15 @@ public class BufferCursorTest {
       System.out.println(Arrays.toString(cursor.keyBytes()) + " " + Arrays.toString(cursor.valBytes()));
     }
     System.out.println("----");
+  }
+
+  private void assertIndexOutOfBounds(Runnable runnable) {
+    try {
+      runnable.run();
+      fail("should throw IndexOutOfBoundsException");
+    } catch (IndexOutOfBoundsException e) {
+      assertThat(e.getMessage(), is("Cursor is in an unpositioned state"));
+    }
   }
 
   private void assertEACCES(Runnable runnable) {

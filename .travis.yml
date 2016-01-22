@@ -9,3 +9,6 @@ script: "mvn install -P linux64"
 
 after_success:
   - mvn -P linux64 jacoco:report coveralls:report
+
+after_failure:
+  - cat lmdbjni-linux64/target/surefire-reports/*.txt

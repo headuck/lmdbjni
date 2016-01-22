@@ -293,6 +293,33 @@ public class Cursor extends NativeObject implements Closeable {
     return valueSlice.toByteArray();
   }
 
+
+  /**
+   * Just reserve space for data in the database, don't copy it.
+   *
+   * @return a pointer to the reserved space.
+   */
+  public DirectBuffer reserve(DirectBuffer key, int size) {
+    checkArgNotNull(key, "key");
+    if (key.byteArray() != null || !key.byteBuffer().isDirect()) {
+      throw new IllegalArgumentException("Key buffer is not direct.");
+    }
+    if (buffer == null) {
+      buffer = new DirectBuffer(ByteBuffer.allocateDirect(Unsafe.ADDRESS_SIZE * 4));
+      bufferAddress = buffer.addressOffset();
+    }
+    Unsafe.putLong(bufferAddress, 0, key.capacity());
+    Unsafe.putLong(bufferAddress, 1, key.addressOffset());
+    Unsafe.putLong(bufferAddress, 2, size);
+    int rc = mdb_cursor_put_address(pointer(), bufferAddress, bufferAddress + 2 * Unsafe.ADDRESS_SIZE, Constants.RESERVE);
+    checkErrorCode(rc);
+    int valSize = (int) Unsafe.getLong(bufferAddress, 2);
+    long valAddress = Unsafe.getAddress(bufferAddress, 3);
+    DirectBuffer empty = new DirectBuffer(0, 0);
+    empty.wrap(valAddress, valSize);
+    return empty;
+  }
+
   /**
    * <p>
    *   Delete current key/data pair.

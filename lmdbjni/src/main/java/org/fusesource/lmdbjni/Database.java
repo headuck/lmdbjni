@@ -23,6 +23,7 @@ import org.fusesource.hawtjni.runtime.Callback;
 import org.fusesource.lmdbjni.EntryIterator.IteratorType;
 
 import java.io.Closeable;
+// import java.nio.ByteBuffer;
 import java.util.Comparator;
 
 import static org.fusesource.lmdbjni.JNI.*;
@@ -79,11 +80,11 @@ public class Database extends NativeObject implements Closeable {
     }
   }
 
-  public MDB_stat stat(Transaction tx) {
+  public Stat stat(Transaction tx) {
     checkArgNotNull(tx, "tx");
     MDB_stat rc = new MDB_stat();
     mdb_stat(tx.pointer(), pointer(), rc);
-    return rc;
+    return new Stat(rc);
   }
 
   /**
@@ -364,6 +365,27 @@ public class Database extends NativeObject implements Closeable {
     int rc = mdb_put_address(tx.pointer(), pointer(), address, address + 2 * Unsafe.ADDRESS_SIZE, flags);
     checkErrorCode(rc);
     return rc;
+  }
+
+  /**
+   * Just reserve space for data in the database, don't copy it.
+   * 
+   * @return a pointer to the reserved space.
+   */
+  public DirectBuffer reserve(Transaction tx, DirectBuffer key, int size) {
+    checkArgNotNull(key, "key");
+    long address = tx.getBufferAddress();
+    Unsafe.putLong(address, 0, key.capacity());
+    Unsafe.putLong(address, 1, key.addressOffset());
+    Unsafe.putLong(address, 2, size);
+
+    int rc = mdb_put_address(tx.pointer(), pointer(), address, address + 2 * Unsafe.ADDRESS_SIZE, Constants.RESERVE);
+    checkErrorCode(rc);
+    int valSize = (int) Unsafe.getLong(address, 2);
+    long valAddress = Unsafe.getAddress(address, 3);
+    DirectBuffer empty = new DirectBuffer(0, 0);
+    empty.wrap(valAddress, valSize);
+    return empty;
   }
 
   /**

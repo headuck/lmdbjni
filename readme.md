@@ -28,14 +28,15 @@ ndkAppAbi = "armeabi armeabi-v7a x86"
 
 ### Documentation
  * [LMDB C API reference](http://symas.com/mdb/doc/group__internal.html)
- * [LMDB source code](https://gitorious.org/mdb/mdb/source/libraries/liblmdb)
- * [LMDB JNI JavaDoc](http://deephacks.org/lmdbjni/apidocs/index.html)
+ * [LMDB source code](https://github.com/LMDB/lmdb)
+ * [LMDB JNI JavaDoc](http://deephacks.github.io/lmdbjni/)
 
 ### Google groups
 
 * https://groups.google.com/forum/#!forum/lmdbjni
 
 ### Presentations
+ * [Databaseology lecture series at Carnegie-Mellon University, Oct 08, 2015](http://cmudb.io/lectures2015-lmdb)
  * [LDAP at Lightning Speed, Jul 05, 2015](http://www.infoq.com/presentations/lmdb)
  * [The Lightning Memory-Mapped Database, Jun 24, 2013](https://www.parleys.com/play/517f58f9e4b0c6dcd95464ae/)
 
@@ -101,6 +102,7 @@ ndkAppAbi = "armeabi armeabi-v7a x86"
   <version>${lmdbjni.version}</version>
 </dependency>
 
+<!-- Android 5.0 (API level 21) 64-bit ARM -->
 <dependency>
   <groupId>org.deephacks.lmdbjni</groupId>
   <artifactId>lmdbjni-android</artifactId>
@@ -108,6 +110,10 @@ ndkAppAbi = "armeabi armeabi-v7a x86"
 </dependency>
 
 ```
+
+### Build from source
+
+See [building from source](https://github.com/deephacks/lmdbjni/wiki/Building-from-source) on wiki.
 
 ### Usage
 
@@ -246,53 +252,65 @@ Using a memory pool to make native memory allocations more efficient:
 
 ### Zero copy usage
 
-The safest (and least efficient) approach for interacting with LMDB JNI is using buffer copy as shown above. [BufferCursor](http://deephacks.org/lmdbjni/apidocs/org/fusesource/lmdbjni/BufferCursor.html) is an advanced, more efficient, zero copy mode. This mode is not available on Android.
+The safest (and least efficient) approach for interacting with LMDB JNI is using buffer copy as shown above. [BufferCursor](http://deephacks.org/lmdbjni/apidocs/org/fusesource/lmdbjni/BufferCursor.html) is a more efficient, zero copy mode. This mode is not available on Android.
 
-*There are also methods that give access to DirectBuffer which are even more advanced but users should avoid interacting directly with these and use the BufferCursor API instead. Otherwise take extra care of buffer memory address+size and byte ordering. Mistakes may lead to SIGSEGV or unpredictable key ordering etc.*
+*There are also methods that give access to DirectBuffer, but users should avoid interacting directly with these and use the BufferCursor API instead. Otherwise take extra care of buffer memory address+size and byte ordering. Mistakes may lead to SIGSEGV or unpredictable key ordering etc.*
 
 ```java
  // read only
  try (Transaction tx = env.createReadTransaction(); 
       BufferCursor cursor = db.bufferCursor(tx)) {
    // iterate from first item and forwards
-   cursor.first();
-   while(cursor.next()) {
-     // read a position in buffer
-     cursor.keyByte(0);
-     cursor.valByte(0);
+   if (cursor.first()) {
+     do {
+       // read a position in buffer
+       cursor.keyByte(0);
+       cursor.valByte(0);
+     } while(cursor.next());
    }
 
    // iterate from last item and backwards
-   cursor.last();
-   while(cursor.prev()) {
-     // copy entire buffer
-     cursor.keyBytes();
-     cursor.valBytes();
+   if (cursor.last()) {
+     do {
+       // copy entire buffer
+       cursor.keyBytes();
+       cursor.valBytes();
+     } while(cursor.prev());
+   }
+   
+   // find entry matching exactly the provided key
+   cursor.keyWriteBytes(bytes("Paris"));
+   if (cursor.seekKey()) {
+     // read utf-8 string from position until NULL byte
+     cursor.valUtf8(0);
    }
 
    // find first key greater than or equal to specified key.
-   cursor.seek(bytes("London"));
-   // read utf-8 string from position until NULL byte
-   cursor.keyUtf8(0);
-   cursor.valUtf8(0);
+   cursor.keyWriteBytes(bytes("London"));
+   if (cursor.seekRange()) {
+     // read utf-8 string from position until NULL byte
+     cursor.keyUtf8(0);
+     cursor.valUtf8(0);
+   }
  }
  
  // open for write
  try (Transaction tx = env.createWriteTransaction()) {
    // cursors must close before write transactions!
    try (BufferCursor cursor = db.bufferCursor(tx)) {
-     cursor.first();
-     // write utf-8 ending with NULL byte
-     cursor.keyWriteUtf8("England");
-     cursor.valWriteUtf8("London");
-     // overwrite existing item if any. Data is not written
-     // into database before this operation is called and
-     // no updates are visible outside this transaction until
-     // the transaction is committed
-     cursor.overwrite();
-     cursor.first();
-     // delete current cursor position
-     cursor.delete();
+     if (cursor.first()) {
+       // write utf-8 ending with NULL byte
+       cursor.keyWriteUtf8("England");
+       cursor.valWriteUtf8("London");
+       // overwrite existing item if any. Data is not written
+       // into database before this operation is called and
+       // no updates are visible outside this transaction until
+       // the transaction is committed
+       cursor.overwrite();
+       cursor.first();
+       // delete current cursor position
+       cursor.delete();
+     }
    }
    // commit changes or try-with-resources will auto-abort
    tx.commit();

@@ -78,11 +78,11 @@ public class DatabaseTest {
     db.put(new byte[]{2}, new byte[]{1});
     Stat stat = db.stat();
     System.out.println(stat);
-    assertThat(stat.getEntries(), is(2L));
-    assertThat(stat.getPsize(), is(not(0L)));
-    assertThat(stat.getOverflowPages(), is(0L));
-    assertThat(stat.getDepth(), is(1L));
-    assertThat(stat.getLeafPages(), is(1L));
+    assertThat(stat.ms_entries, is(2L));
+    assertThat(stat.ms_psize, is(not(0L)));
+    assertThat(stat.ms_overflow_pages, is(0L));
+    assertThat(stat.ms_depth, is(1L));
+    assertThat(stat.ms_leaf_pages, is(1L));
   }
 
   @Test

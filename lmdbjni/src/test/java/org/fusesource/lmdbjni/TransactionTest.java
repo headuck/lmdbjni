@@ -7,7 +7,10 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsNot.not;
 import static org.junit.Assert.*;
 
 public class TransactionTest {
@@ -35,20 +38,20 @@ public class TransactionTest {
     env.close();
   }
 
-//  @Test
-//  public void testGetId() throws Exception {
-//    final AtomicLong tx1 = new AtomicLong();
-//    final AtomicLong tx2 = new AtomicLong();
-//    try (Transaction tx = env.createReadTransaction()) {
-//      tx1.set(tx.getId());
-//    }
-//    db.put(new byte[] {1}, new byte[]{2});
-//    try (Transaction tx = env.createReadTransaction()) {
-//      tx2.set(tx.getId());
-//    }
-//    // should not see the same snapshot
-//    assertThat(tx1.get(), is(not(tx2.get())));
-//  }
+  @Test
+  public void testGetId() throws Exception {
+    final AtomicLong tx1 = new AtomicLong();
+    final AtomicLong tx2 = new AtomicLong();
+    try (Transaction tx = env.createReadTransaction()) {
+      tx1.set(tx.getId());
+    }
+    db.put(new byte[] {1}, new byte[]{2});
+    try (Transaction tx = env.createReadTransaction()) {
+      tx2.set(tx.getId());
+    }
+    // should not see the same snapshot
+    assertThat(tx1.get(), is(not(tx2.get())));
+  }
 
   @Test
   public void testCommit() {

@@ -26,6 +26,19 @@ import static org.fusesource.lmdbjni.JNI.mdb_strerror;
  * state will cause a SIGSEGV.
  * </p>
  * <p>
+ * Cursors start in an unpositioned state. If {@link BufferCursor#next()} or
+ * {@link BufferCursor#prev()} ()} are used in this state, iteration proceeds
+ * from the start or end respectively.
+ * Cursors return to an unpositioned state once any scanning or seeking method
+ * returns <code>false</code>. This is primarily to ensure safe, consistent
+ * semantics in the face of any error condition.
+ * When the Cursor returns to an unpositioned state, its {@link BufferCursor#keyLength()}}
+ * and {@link BufferCursor#valLength()} return <code>0</code> to indicate there is no
+ * active position, although internally the LMDB cursor may still have a valid position.
+ * Similarly methods like {@link BufferCursor#keyByte(int)} or {@link BufferCursor#valByte(int)}
+ * will throw an {@link IndexOutOfBoundsException}.
+ * </p>
+ * <p>
  * Any modification will be written into cached byte buffers which
  * is not written into database until {@link BufferCursor#put()} or
  * {@link BufferCursor#overwrite()} is called and no updates are visible
@@ -57,21 +70,35 @@ import static org.fusesource.lmdbjni.JNI.mdb_strerror;
  * // read only
  * try (Transaction tx = env.createReadTransaction();
  *      BufferCursor cursor = db.bufferCursor(tx)) {
- *   cursor.first();
- *   while(cursor.next()) {
+ *   // iterate from the first entry to the last
+ *   if (cursor.first()) {
+ *     do {
+ *       cursor.keyByte(0);
+ *       cursor.valByte(0);
+ *     }  while(cursor.next());
+ *   }
+ *
+ *   // iterate from the last entry to the first
+ *   if (cursor.last()) {
+ *     do {
+ *       cursor.keyByte(0);
+ *       cursor.valByte(0);
+ *     } while(cursor.prev());
+ *   }
+ *
+ *   // find entry matching exactly the provided key
+ *   cursor.keyWriteBytes(bytes("Paris"));
+ *   if (cursor.seekKey()) {
  *     cursor.keyByte(0);
  *     cursor.valByte(0);
  *   }
  *
- *   cursor.last();
- *   while(cursor.prev()) {
+ *   // find first entry which key greater than or equal to the provided key
+ *   cursor.keyWriteBytes(bytes("London"));
+ *   if (cursor.seekRange()) {
  *     cursor.keyByte(0);
  *     cursor.valByte(0);
  *   }
- *
- *   cursor.seek(bytes("London"));
- *   cursor.keyByte(0);
- *   cursor.valByte(0);
  * }
  *
  * // open for write
@@ -100,6 +127,7 @@ public class BufferCursor implements Closeable {
   private boolean valDatbaseMemoryLocation = false;
   private int keyWriteIndex = 0;
   private int valWriteIndex = 0;
+  private boolean validPosition = false;
 
   BufferCursor(Cursor cursor, DirectBuffer key, DirectBuffer value) {
     this.cursor = cursor;
@@ -127,18 +155,68 @@ public class BufferCursor implements Closeable {
   }
 
   /**
+   * @return the write position of the key
+   */
+  public int keyWriteIndex() {
+	  return keyWriteIndex;
+  }
+
+  /**
+   * @return the write position of the value
+   */
+  public int valWriteIndex() {
+	  return valWriteIndex;
+  }
+
+  /**
+   * Position at the exact provided key.
+   *
+   * @return true if a key was found.
+   */
+  public boolean seekKey() {
+    if (keyWriteIndex != 0) {
+      this.key.wrap(this.key.addressOffset(), keyWriteIndex);
+    }
+    int rc = cursor.seekPosition(this.key, value, SeekOp.KEY);
+    setDatabaseMemoryLocation(rc);
+    return rc == 0;
+  }
+
+  /**
+   * Position at first key greater than or equal to provided key.
+   *
+   * @return true if a key was found.
+   */
+  public boolean seekRange() {
+    if (keyWriteIndex != 0) {
+      this.key.wrap(this.key.addressOffset(), keyWriteIndex);
+    }
+    int rc = cursor.seekPosition(this.key, value, SeekOp.RANGE);
+    setDatabaseMemoryLocation(rc);
+    return rc == 0;
+  }
+
+  /**
    * Position at first key greater than or equal to specified key.
    *
    * @param key key to seek for.
    * @return true if a key was found.
    */
+  public boolean seekRange(byte[] key) {
+    keyWriteBytes(key);
+    return seekRange();
+  }
+
+  /**
+   * Position at first key greater than or equal to specified key.
+   *
+   * @param key key to seek for.
+   * @return true if a key was found.
+   * @deprecated use {@link BufferCursor#seekRange(byte[])} }
+   */
+  @Deprecated
   public boolean seek(byte[] key) {
-    ByteBuffer buf = ByteBuffer.allocateDirect(key.length);
-    this.key.wrap(buf);
-    this.key.putBytes(0, key);
-    int rc = cursor.seekPosition(this.key, value, SeekOp.RANGE);
-    wrapDatabaseMemoryLocation(this.key, value);
-    return rc == 0;
+    return seekRange(key);
   }
 
   /**
@@ -148,7 +226,7 @@ public class BufferCursor implements Closeable {
    */
   public boolean first() {
     int rc = cursor.position(key, value, GetOp.FIRST);
-    wrapDatabaseMemoryLocation(key, value);
+    setDatabaseMemoryLocation(rc);
     return rc == 0;
   }
 
@@ -160,7 +238,7 @@ public class BufferCursor implements Closeable {
    */
   public boolean firstDup() {
     int rc = cursor.position(key, value, GetOp.FIRST_DUP);
-    wrapDatabaseMemoryLocation(key, value);
+    setDatabaseMemoryLocation(rc);
     return rc == 0;
   }
 
@@ -171,7 +249,7 @@ public class BufferCursor implements Closeable {
    */
   public boolean last() {
     int rc = cursor.position(key, value, GetOp.LAST);
-    wrapDatabaseMemoryLocation(key, value);
+    setDatabaseMemoryLocation(rc);
     return rc == 0;
   }
 
@@ -183,7 +261,7 @@ public class BufferCursor implements Closeable {
    */
   public boolean lastDup() {
     int rc = cursor.position(key, value, GetOp.LAST_DUP);
-    wrapDatabaseMemoryLocation(key, value);
+    setDatabaseMemoryLocation(rc);
     return rc == 0;
   }
 
@@ -194,7 +272,7 @@ public class BufferCursor implements Closeable {
    */
   public boolean next() {
     int rc = cursor.position(key, value, GetOp.NEXT);
-    wrapDatabaseMemoryLocation(key, value);
+    setDatabaseMemoryLocation(rc);
     return rc == 0;
   }
 
@@ -206,7 +284,7 @@ public class BufferCursor implements Closeable {
    */
   public boolean nextDup() {
     int rc = cursor.position(key, value, GetOp.NEXT_DUP);
-    wrapDatabaseMemoryLocation(key, value);
+    setDatabaseMemoryLocation(rc);
     return rc == 0;
   }
 
@@ -218,7 +296,7 @@ public class BufferCursor implements Closeable {
    */
   public boolean prev() {
     int rc = cursor.position(key, value, GetOp.PREV);
-    wrapDatabaseMemoryLocation(key, value);
+    setDatabaseMemoryLocation(rc);
     return rc == 0;
   }
 
@@ -230,7 +308,7 @@ public class BufferCursor implements Closeable {
    */
   public boolean prevDup() {
     int rc = cursor.position(key, value, GetOp.PREV_DUP);
-    wrapDatabaseMemoryLocation(key, value);
+    setDatabaseMemoryLocation(rc);
     return rc == 0;
   }
 
@@ -320,16 +398,41 @@ public class BufferCursor implements Closeable {
    * Write data to key at current cursor position and
    * move write index forward.
    *
+   * @param data boolean
+   * @return this
+   */
+  public BufferCursor keyWriteBoolean(boolean data) {
+    setSafeKeyMemoryLocation();
+    this.key.putByte(keyWriteIndex, data ? (byte)1 : (byte)0);
+    keyWriteIndex += 1;
+    return this;
+  }
+
+  /**
+   * Write data to key at current cursor position and
+   * move write index forward.
+   *
    * @param data byte
    * @return this
    */
   public BufferCursor keyWriteByte(int data) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeKeyMemoryLocation();
     this.key.putByte(keyWriteIndex, (byte) data);
     keyWriteIndex += 1;
+    return this;
+  }
+
+  /**
+   * Write data to key at current cursor position and
+   * move write index forward.
+   *
+   * @param data short
+   * @return this
+   */
+  public BufferCursor keyWriteShort(short data) {
+    setSafeKeyMemoryLocation();
+    this.key.putShort(keyWriteIndex, data, ByteOrder.BIG_ENDIAN);
+    keyWriteIndex += 2;
     return this;
   }
 
@@ -341,9 +444,6 @@ public class BufferCursor implements Closeable {
    * @return this
    */
   public BufferCursor keyWriteInt(int data) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeKeyMemoryLocation();
     this.key.putInt(keyWriteIndex, data, ByteOrder.BIG_ENDIAN);
     keyWriteIndex += 4;
@@ -358,9 +458,6 @@ public class BufferCursor implements Closeable {
    * @return this
    */
   public BufferCursor keyWriteLong(long data) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeKeyMemoryLocation();
     this.key.putLong(keyWriteIndex, data, ByteOrder.BIG_ENDIAN);
     keyWriteIndex += 8;
@@ -375,9 +472,6 @@ public class BufferCursor implements Closeable {
    * @return this
    */
   public BufferCursor keyWriteFloat(float data) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeValMemoryLocation();
     this.key.putFloat(keyWriteIndex, data, ByteOrder.BIG_ENDIAN);
     keyWriteIndex += 4;
@@ -392,9 +486,6 @@ public class BufferCursor implements Closeable {
    * @return this
    */
   public BufferCursor keyWriteDouble(double data) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeValMemoryLocation();
     this.key.putDouble(keyWriteIndex, data, ByteOrder.BIG_ENDIAN);
     keyWriteIndex += 8;
@@ -409,9 +500,6 @@ public class BufferCursor implements Closeable {
    * @return this
    */
   public BufferCursor keyWriteUtf8(ByteString data) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeKeyMemoryLocation();
     this.key.putString(keyWriteIndex, data);
     keyWriteIndex += data.size() + 1;
@@ -426,9 +514,6 @@ public class BufferCursor implements Closeable {
    * @return this
    */
   public BufferCursor keyWriteUtf8(String data) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeKeyMemoryLocation();
     ByteString bytes = new ByteString(data);
     this.key.putString(keyWriteIndex, bytes);
@@ -444,12 +529,25 @@ public class BufferCursor implements Closeable {
    * @return this
    */
   public BufferCursor keyWriteBytes(byte[] data) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeKeyMemoryLocation();
     this.key.putBytes(keyWriteIndex, data);
     keyWriteIndex += data.length;
+    return this;
+  }
+
+  /**
+   * Write data to key at current cursor position and
+   * move write index forward.
+   *
+   * @param data byte array
+   * @param offset the start offset in the data
+   * @param length the number of bytes to write
+   * @return this
+   */
+  public BufferCursor keyWriteBytes(byte[] data, int offset, int length) {
+    setSafeKeyMemoryLocation();
+    this.key.putBytes(keyWriteIndex, data, offset, length);
+    keyWriteIndex += length;
     return this;
   }
 
@@ -462,9 +560,6 @@ public class BufferCursor implements Closeable {
    * @return this
    */
   public BufferCursor keyWrite(DirectBuffer buffer, int capacity) {
-    if (isReadOnly) {
-      throw new LMDBException("Read only transaction", LMDBException.EACCES);
-    }
     setSafeKeyMemoryLocation();
     this.key.putBytes(keyWriteIndex, buffer, 0, capacity);
     keyWriteIndex += capacity;
@@ -480,13 +575,49 @@ public class BufferCursor implements Closeable {
   }
 
   /**
+   * Get key length at current cursor position.
+   *
+   * @return length of key or <code>0</code> if cursor is in an unpositioned state.
+   */
+  public int keyLength() {
+    if (validPosition) {
+      return this.key.capacity();
+    } else {
+      return 0;
+    }
+  }
+
+  /**
+   * Get data from key at current cursor position.
+   *
+   * @param pos byte position
+   * @return boolean
+   */
+  public boolean keyBoolean(int pos) {
+    checkForValidPosition();
+    return this.key.getByte(pos) == (byte)1;
+  }
+
+  /**
    * Get data from key at current cursor position.
    *
    * @param pos byte position
    * @return byte
    */
   public byte keyByte(int pos) {
+    checkForValidPosition();
     return this.key.getByte(pos);
+  }
+
+  /**
+   * Get data from key at current cursor position.
+   *
+   * @param pos byte position
+   * @return short
+   */
+  public short keyShort(int pos) {
+    checkForValidPosition();
+    return this.key.getShort(pos, ByteOrder.BIG_ENDIAN);
   }
 
   /**
@@ -496,6 +627,7 @@ public class BufferCursor implements Closeable {
    * @return int
    */
   public int keyInt(int pos) {
+    checkForValidPosition();
     return this.key.getInt(pos, ByteOrder.BIG_ENDIAN);
   }
 
@@ -506,6 +638,7 @@ public class BufferCursor implements Closeable {
    * @return long
    */
   public long keyLong(int pos) {
+    checkForValidPosition();
     return this.key.getLong(pos, ByteOrder.BIG_ENDIAN);
   }
 
@@ -516,6 +649,7 @@ public class BufferCursor implements Closeable {
    * @return float
    */
   public float keyFloat(int pos) {
+    checkForValidPosition();
     return this.key.getFloat(pos, ByteOrder.BIG_ENDIAN);
   }
 
@@ -526,6 +660,7 @@ public class BufferCursor implements Closeable {
    * @return double
    */
   public double keyDouble(int pos) {
+    checkForValidPosition();
     return this.key.getDouble(pos, ByteOrder.BIG_ENDIAN);
   }
 
@@ -537,6 +672,7 @@ public class BufferCursor implements Closeable {
    * @return String
    */
   public ByteString keyUtf8(int pos) {
+    checkForValidPosition();
     return this.key.getString(pos);
   }
 
@@ -547,6 +683,7 @@ public class BufferCursor implements Closeable {
    * @return byte array
    */
   public byte[] keyBytes(int pos, int length) {
+    checkForValidPosition();
     byte[] k = new byte[length];
     key.getBytes(pos, k);
     return k;
@@ -556,6 +693,7 @@ public class BufferCursor implements Closeable {
    * @return copy of key data
    */
   public byte[] keyBytes() {
+    checkForValidPosition();
     byte[] k = new byte[key.capacity()];
     key.getBytes(0, k);
     return k;
@@ -574,7 +712,26 @@ public class BufferCursor implements Closeable {
    * @return the key direct buffer at current position.
    */
   public DirectBuffer keyDirectBuffer() {
+    checkForValidPosition();
     return key;
+  }
+
+  /**
+   * Write data to value at current cursor position and
+   * move write index forward.
+   *
+   * @param data boolean
+   * @return this
+   */
+  public BufferCursor valWriteBoolean(boolean data) {
+    if (isReadOnly) {
+      throw new LMDBException("Read only transaction", LMDBException.EACCES);
+    }
+    setSafeValMemoryLocation();
+    ensureValueWritableBytes(1);
+    this.value.putByte(valWriteIndex, data ? (byte)1 : (byte)0);
+    valWriteIndex += 1;
+    return this;
   }
 
   /**
@@ -592,6 +749,24 @@ public class BufferCursor implements Closeable {
     ensureValueWritableBytes(1);
     this.value.putByte(valWriteIndex, (byte) data);
     valWriteIndex += 1;
+    return this;
+  }
+
+  /**
+   * Write data to value at current cursor position and
+   * move write index forward.
+   *
+   * @param data short
+   * @return this
+   */
+  public BufferCursor valWriteShort(short data) {
+    if (isReadOnly) {
+      throw new LMDBException("Read only transaction", LMDBException.EACCES);
+    }
+    setSafeValMemoryLocation();
+    ensureValueWritableBytes(4);
+    this.value.putShort(valWriteIndex, data, ByteOrder.BIG_ENDIAN);
+    valWriteIndex += 2;
     return this;
   }
 
@@ -726,27 +901,81 @@ public class BufferCursor implements Closeable {
    * Write data to value at current cursor position and
    * move write index forward.
    *
-   * @param buffer   buffer
-   * @param capacity capacity
+   * @param data byte array
+  * @param offset the start offset in the data
+  * @param length the number of bytes to write
    * @return this
    */
-  public BufferCursor valWrite(DirectBuffer buffer, int capacity) {
+  public BufferCursor valWriteBytes(byte[] data, int offset, int length) {
     if (isReadOnly) {
       throw new LMDBException("Read only transaction", LMDBException.EACCES);
     }
     setSafeValMemoryLocation();
-    ensureValueWritableBytes(capacity);
-    this.value.putBytes(valWriteIndex, buffer, 0, capacity);
-    valWriteIndex += capacity;
+    ensureValueWritableBytes(length);
+    this.value.putBytes(valWriteIndex, data, offset, length);
+    valWriteIndex += length;
     return this;
+  }
+
+
+  
+  /**
+   * Write data to value at current cursor position and
+   * move write index forward.
+   *
+   * @param buffer to write from
+   * @param srcIndex position to start in buffer
+   * @param length how many bytes to write
+   * @return this
+   */
+  public BufferCursor valWrite(DirectBuffer buffer, int srcIndex, int length) {
+    if (isReadOnly) {
+      throw new LMDBException("Read only transaction", LMDBException.EACCES);
+    }
+    setSafeValMemoryLocation();
+    ensureValueWritableBytes(length);
+    this.value.putBytes(valWriteIndex, buffer, srcIndex, length);
+    valWriteIndex += length;
+    return this;
+  }
+
+  /**
+   * @see org.fusesource.lmdbjni.BufferCursor#valWrite(DirectBuffer, int, int)
+   */
+  public BufferCursor valWrite(DirectBuffer buffer, int length) {
+    return valWrite(buffer, 0, length);
   }
 
   /**
    * @see org.fusesource.lmdbjni.BufferCursor#valWrite(DirectBuffer, int)
    */
   public BufferCursor valWrite(DirectBuffer buffer) {
-    valWrite(buffer, buffer.capacity());
+    valWrite(buffer, 0, buffer.capacity());
     return this;
+  }
+
+  /**
+   * Get value length at current cursor position.
+   *
+   * @return length of value or <code>0</code> if cursor is in an unpositioned state.
+   */
+  public int valLength() {
+    if (validPosition) {
+      return this.value.capacity();
+    } else {
+      return 0;
+    }
+  }
+
+  /**
+   * Get data from value at current cursor position.
+   *
+   * @param pos byte position
+   * @return boolean
+   */
+  public boolean valBoolean(int pos) {
+    checkForValidPosition();
+    return this.value.getByte(pos) == (byte)1;
   }
 
   /**
@@ -756,7 +985,25 @@ public class BufferCursor implements Closeable {
    * @return byte
    */
   public byte valByte(int pos) {
+    checkForValidPosition();
     return this.value.getByte(pos);
+  }
+
+  private void checkForValidPosition() {
+    if (!validPosition) {
+      throw new IndexOutOfBoundsException("Cursor is in an unpositioned state");
+    }
+  }
+
+  /**
+   * Get data from value at current cursor position.
+   *
+   * @param pos byte position
+   * @return short
+   */
+  public short valShort(int pos) {
+    checkForValidPosition();
+    return this.value.getShort(pos, ByteOrder.BIG_ENDIAN);
   }
 
   /**
@@ -766,6 +1013,7 @@ public class BufferCursor implements Closeable {
    * @return int
    */
   public int valInt(int pos) {
+    checkForValidPosition();
     return this.value.getInt(pos, ByteOrder.BIG_ENDIAN);
   }
 
@@ -776,6 +1024,7 @@ public class BufferCursor implements Closeable {
    * @return long
    */
   public long valLong(int pos) {
+    checkForValidPosition();
     return this.value.getLong(pos, ByteOrder.BIG_ENDIAN);
   }
 
@@ -786,6 +1035,7 @@ public class BufferCursor implements Closeable {
    * @return byte array
    */
   public byte[] valBytes(int pos, int length) {
+    checkForValidPosition();
     byte[] v = new byte[length];
     value.getBytes(pos, v);
     return v;
@@ -796,6 +1046,7 @@ public class BufferCursor implements Closeable {
    * @return copy of value data
    */
   public byte[] valBytes() {
+    checkForValidPosition();
     byte[] v = new byte[value.capacity()];
     value.getBytes(0, v);
     return v;
@@ -817,6 +1068,7 @@ public class BufferCursor implements Closeable {
    * @return float
    */
   public float valFloat(int pos) {
+    checkForValidPosition();
     return this.value.getFloat(pos, ByteOrder.BIG_ENDIAN);
   }
 
@@ -827,6 +1079,7 @@ public class BufferCursor implements Closeable {
    * @return double
    */
   public double valDouble(int pos) {
+    checkForValidPosition();
     return this.value.getDouble(pos, ByteOrder.BIG_ENDIAN);
   }
 
@@ -838,6 +1091,7 @@ public class BufferCursor implements Closeable {
    * @return String
    */
   public ByteString valUtf8(int pos) {
+    checkForValidPosition();
     return this.value.getString(pos);
   }
 
@@ -845,6 +1099,7 @@ public class BufferCursor implements Closeable {
    * @return the direct buffer at the current position.
    */
   public DirectBuffer valDirectBuffer() {
+    checkForValidPosition();
     return this.value;
   }
 
@@ -872,9 +1127,8 @@ public class BufferCursor implements Closeable {
     }
   }
 
-  private void wrapDatabaseMemoryLocation(DirectBuffer key, DirectBuffer value) {
-    this.key = key;
-    this.value = value;
+  private void setDatabaseMemoryLocation(int rc) {
+    validPosition = rc == 0;
     this.valDatbaseMemoryLocation = true;
     this.keyDatbaseMemoryLocation = true;
     keyWriteIndex = 0;

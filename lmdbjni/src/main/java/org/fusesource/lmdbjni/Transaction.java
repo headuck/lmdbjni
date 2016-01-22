@@ -49,9 +49,9 @@ public class Transaction extends NativeObject implements Closeable {
    *
    * @return A transaction ID, valid if input is an active transaction.
    */
-//  public long getId() {
-//    return mdb_txn_id(pointer());
-//  }
+  public long getId() {
+    return mdb_txn_id(pointer());
+  }
 
   /**
    * <p>
