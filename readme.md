@@ -11,13 +11,13 @@ LMDB JNI is available for 64 bit Linux, OSX, Windows and Android.
 
 ### About this fork
 
-This is a fork of https://github.com/deephacks/lmdbjni at version `0.4.4` to
+This is a fork of https://github.com/deephacks/lmdbjni at version `0.4.5` to
 * Simplify building for Android with gradle
 * Make it compatible with Android API 8 (by using Java subset under JDK 1.5)
 
 To build the android library, install gradle (tested on Gradle 2.2) and Android NDK (tested on version r10d), set the environment variable NDK_HOME to point to the ndk directory (without trailing slash), and issue `gradle build` at the project directory. The build process does not need `autoconf` / `automake` tools.
 
-The compiled jar file will be stored at `lmdbjni-android-hea/build/libs`, and the native library `.so` files are under respective arch directories.  Copy the tree under the `libs` directory to your Android project `libs` directory for use in your project.
+The compiled jar file will be stored at `lmdbjni-android-hea/build/libs`, and the native library `.so` files are under respective arch directories.  Copy the tree under the `libs` directory to your Android project `libs` directory for use in your project.  (For Android Studio, the native library directories with the .so files should be placed under src/main/jniLibs instead of under libs.)
 
 To control the target platform and architecture, edit the `build.gradle` file at the project directory and change the lines with
 
