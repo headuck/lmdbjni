@@ -6,12 +6,12 @@
   <parent>
     <groupId>org.deephacks.lmdbjni</groupId>
     <artifactId>lmdbjni-project</artifactId>
-    <version>0.4.6-SNAPSHOT</version>
+    <version>0.4.8-SNAPSHOT</version>
   </parent>
 
   <groupId>org.deephacks.lmdbjni</groupId>
   <artifactId>jmh</artifactId>
-  <version>0.4.6-SNAPSHOT</version>
+  <version>0.4.8-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>JMH benchmark</name>
@@ -36,12 +36,12 @@
     <dependency>
       <groupId>org.deephacks.lmdbjni</groupId>
       <artifactId>lmdbjni</artifactId>
-      <version>0.4.6-SNAPSHOT</version>
+      <version>0.4.8-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.deephacks.lmdbjni</groupId>
       <artifactId>lmdbjni-linux64</artifactId>
-      <version>0.4.6-SNAPSHOT</version>
+      <version>0.4.8-SNAPSHOT</version>
     </dependency>
     <dependency>
       <groupId>org.rocksdb</groupId>

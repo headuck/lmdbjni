@@ -40,6 +40,9 @@
  *	corrupt the database. Of course if your application code is known to
  *	be bug-free (...) then this is not an issue.
  *
+ *	If this is your first time using a transactional embedded key/value
+ *	store, you may find the \ref starting page to be helpful.
+ *
  *	@section caveats_sec Caveats
  *	Troubleshooting the lock file, plus semaphores on BSD systems:
  *
@@ -74,6 +77,11 @@
  *	  access to locks and lock file. Exceptions: On read-only filesystems
  *	  or with the #MDB_NOLOCK flag described under #mdb_env_open().
  *
+ *	- An LMDB configuration will often reserve considerable \b unused
+ *	  memory address space and maybe file size for future growth.
+ *	  This does not use actual memory or disk space, but users may need
+ *	  to understand the difference so they won't be scared off.
+ *
  *	- By default, in versions before 0.9.10, unused portions of the data
  *	  file might receive garbage data from memory freed by other code.
  *	  (This does not happen when using the #MDB_WRITEMAP flag.) As of
@@ -88,11 +96,12 @@
  *	  transactions.  Each transaction belongs to one thread.  See below.
  *	  The #MDB_NOTLS flag changes this for read-only transactions.
  *
- *	- Use an MDB_env* in the process which opened it, without fork()ing.
+ *	- Use an MDB_env* in the process which opened it, not after fork().
  *
  *	- Do not have open an LMDB database twice in the same process at
  *	  the same time.  Not even from a plain open() call - close()ing it
- *	  breaks flock() advisory locking.
+ *	  breaks fcntl() advisory locking.  (It is OK to reopen it after
+ *	  fork() - exec*(), since the lockfile has FD_CLOEXEC set.)
  *
  *	- Avoid long-lived transactions.  Read transactions prevent
  *	  reuse of pages freed by newer write transactions, thus the
@@ -126,7 +135,7 @@
  *
  *	@author	Howard Chu, Symas Corporation.
  *
- *	@copyright Copyright 2011-2015 Howard Chu, Symas Corp. All rights reserved.
+ *	@copyright Copyright 2011-2016 Howard Chu, Symas Corp. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted only as authorized by the OpenLDAP
@@ -191,7 +200,7 @@ typedef int mdb_filehandle_t;
 /** Library minor version */
 #define MDB_VERSION_MINOR	9
 /** Library patch version */
-#define MDB_VERSION_PATCH	17
+#define MDB_VERSION_PATCH	19
 
 /** Combine args a,b,c into a single integer for easy version comparisons */
 #define MDB_VERINT(a,b,c)	(((a) << 24) | ((b) << 16) | (c))
@@ -201,7 +210,7 @@ typedef int mdb_filehandle_t;
 	MDB_VERINT(MDB_VERSION_MAJOR,MDB_VERSION_MINOR,MDB_VERSION_PATCH)
 
 /** The release date of this library version */
-#define MDB_VERSION_DATE	"November 30, 2015"
+#define MDB_VERSION_DATE	"December 28, 2016"
 
 /** A stringifier for the version info */
 #define MDB_VERSTR(a,b,c,d)	"LMDB " #a "." #b "." #c ": (" d ")"
@@ -380,7 +389,9 @@ typedef enum MDB_cursor_op {
 	MDB_PREV_NODUP,			/**< Position at last data item of previous key */
 	MDB_SET,				/**< Position at specified key */
 	MDB_SET_KEY,			/**< Position at specified key, return key + data */
-	MDB_SET_RANGE			/**< Position at first key greater than or equal to specified key. */
+	MDB_SET_RANGE,			/**< Position at first key greater than or equal to specified key. */
+	MDB_PREV_MULTIPLE		/**< Position at previous page and return key and up to
+								a page of duplicate data items. Only for #MDB_DUPFIXED */
 } MDB_cursor_op;
 
 /** @defgroup  errors	Return Codes
@@ -526,9 +537,11 @@ int  mdb_env_create(MDB_env **env);
 	 *		allowed. LMDB will still modify the lock file - except on read-only
 	 *		filesystems, where LMDB does not use locks.
 	 *	<li>#MDB_WRITEMAP
-	 *		Use a writeable memory map unless MDB_RDONLY is set. This is faster
-	 *		and uses fewer mallocs, but loses protection from application bugs
+	 *		Use a writeable memory map unless MDB_RDONLY is set. This uses
+	 *		fewer mallocs but loses protection from application bugs
 	 *		like wild pointer writes and other bad updates into the database.
+	 *		This may be slightly faster for DBs that fit entirely in RAM, but
+	 *		is slower for DBs larger than RAM.
 	 *		Incompatible with nested transactions.
 	 *		Do not mix processes with and without MDB_WRITEMAP on the same
 	 *		environment.  This can defeat durability (#mdb_env_sync etc).
@@ -667,6 +680,7 @@ int  mdb_env_copyfd(MDB_env *env, mdb_filehandle_t fd);
 	 *	<li>#MDB_CP_COMPACT - Perform compaction while copying: omit free
 	 *		pages and sequentially renumber all pages in output. This option
 	 *		consumes more CPU and runs more slowly than the default.
+	 *		Currently it fails if the environment has suffered a page leak.
 	 * </ul>
 	 * @return A non-zero error value on failure and 0 on success.
 	 */
@@ -781,6 +795,10 @@ int  mdb_env_get_flags(MDB_env *env, unsigned int *flags);
 int  mdb_env_get_path(MDB_env *env, const char **path);
 
 	/** @brief Return the filedescriptor for the given environment.
+	 *
+	 * This function may be called after fork(), so the descriptor can be
+	 * closed before exec*().  Other LMDB file descriptors have FD_CLOEXEC.
+	 * (Until LMDB 0.9.18, only the lockfile had that.)
 	 *
 	 * @param[in] env An environment handle returned by #mdb_env_create()
 	 * @param[out] fd Address of a mdb_filehandle_t to contain the descriptor.
@@ -1085,8 +1103,9 @@ int  mdb_txn_renew(MDB_txn *txn);
 	 *		This flag may only be used in combination with #MDB_DUPSORT. This option
 	 *		tells the library that the data items for this database are all the same
 	 *		size, which allows further optimizations in storage and retrieval. When
-	 *		all data items are the same size, the #MDB_GET_MULTIPLE and #MDB_NEXT_MULTIPLE
-	 *		cursor operations may be used to retrieve multiple items at once.
+	 *		all data items are the same size, the #MDB_GET_MULTIPLE, #MDB_NEXT_MULTIPLE
+	 *		and #MDB_PREV_MULTIPLE cursor operations may be used to retrieve multiple
+	 *		items at once.
 	 *	<li>#MDB_INTEGERDUP
 	 *		This option specifies that duplicate data items are binary integers,
 	 *		similar to #MDB_INTEGERKEY keys.
@@ -1455,7 +1474,8 @@ int  mdb_cursor_get(MDB_cursor *cursor, MDB_val *key, MDB_val *data,
 	 *		the database supports duplicates (#MDB_DUPSORT).
 	 *	<li>#MDB_RESERVE - reserve space for data of the given size, but
 	 *		don't copy the given data. Instead, return a pointer to the
-	 *		reserved space, which the caller can fill in later. This saves
+	 *		reserved space, which the caller can fill in later - before
+	 *		the next update operation or the transaction ends. This saves
 	 *		an extra memcpy if the data is being generated later. This flag
 	 *		must not be specified if the database was opened with #MDB_DUPSORT.
 	 *	<li>#MDB_APPEND - append the given key/data pair to the end of the

@@ -5,7 +5,7 @@
        src="https://scan.coverity.com/projects/4017/badge.svg"/>
 </a>
 
-LMDB JNI provide a Java API to [LMDB](http://symas.com/mdb/) which is an ultra-fast, ultra-compact key-value embedded data store developed by Symas for the OpenLDAP Project. It uses memory-mapped files, so it has the read performance of a pure in-memory database while still offering the persistence of standard disk-based databases. Transactional with full ACID semantics and crash-proof by design. No corruption. No startup time. Zero-config cache tuning. No dependencies. 
+LMDB JNI provide a Java API to [LMDB](http://symas.com/mdb/) which is an ultra-fast, ultra-compact key-value embedded data store developed by Symas for the OpenLDAP Project. It uses memory-mapped files, so it has the read performance of a pure in-memory database while still offering the persistence of standard disk-based databases. Transactional with full ACID semantics and crash-proof by design. No corruption. No startup time. Zero-config cache tuning. No dependencies. Proven in production applications.
 
 LMDB JNI is available for 64 bit Linux, OSX, Windows and Android.
 
@@ -27,15 +27,12 @@ ndkAppAbi = "armeabi armeabi-v7a x86"
 ```
 
 ### Documentation
- * [LMDB C API reference](http://symas.com/mdb/doc/group__internal.html)
+ * [LMDB C API reference](http://lmdb.tech/doc/index.html)
  * [LMDB source code](https://github.com/LMDB/lmdb)
  * [LMDB JNI JavaDoc](http://deephacks.github.io/lmdbjni/)
 
-### Google groups
-
-* https://groups.google.com/forum/#!forum/lmdbjni
-
 ### Presentations
+ * [The Lightning Memory-mapped Database, Mar 02, 2016](http://www.infoq.com/presentations/lmdb-lighting-memory-mapped-database)
  * [Databaseology lecture series at Carnegie-Mellon University, Oct 08, 2015](http://cmudb.io/lectures2015-lmdb)
  * [LDAP at Lightning Speed, Jul 05, 2015](http://www.infoq.com/presentations/lmdb)
  * [The Lightning Memory-Mapped Database, Jun 24, 2013](https://www.parleys.com/play/517f58f9e4b0c6dcd95464ae/)
@@ -70,8 +67,32 @@ ndkAppAbi = "armeabi armeabi-v7a x86"
   Iteration.mapdb             thrpt   10   1358748.670 ±   87502.413  ops/s
   Iteration.rocksdb           thrpt   10   1311441.804 ±  176129.883  ops/s
    ```
+* LMDB JNI microbenchmark, February 2016
+
+  Random gets on a database with 370 million entries of 30GiB on a *non-SSD* drive. Keys 29 bytes and values 8 bytes. The target machine was busy serving traffic and this was the memory usage *before* executing the test.
+  
+  ```bash
+  $ free -m
+               total       used       free     shared    buffers     cached
+  Mem:         32126      31890        235          0         55       9476
+  -/+ buffers/cache:      22359       9767
+  Swap:         7627       2350       5277
+
+  ```
+  Percentiles measured in nanoseconds using HdrHistogram.
+  
+  ```bash
+   min       0.50        .90        0.99      0.999     0.9999        max
+  5376      10367      12991      30335      51967      83967      83967
+  4608      10175      12799      34559      84991     946175     946175
+  3568      10239      12991      33791      70655     107007     107007
+```
 
 ### Maven
+
+*Windows, Android and OSX support has been discontinued in lmdbjni 0.4.7 (LMDB 0.9.19) and onward. Users can still build releases at their own convenience, but no artifacts will be published to Maven Central.*
+
+*Please refer to [lmdbjava](https://github.com/lmdbjava/lmdbjava).*
 
 ```xml
 <!-- required java classes -->
@@ -110,10 +131,6 @@ ndkAppAbi = "armeabi armeabi-v7a x86"
 </dependency>
 
 ```
-
-### Build from source
-
-See [building from source](https://github.com/deephacks/lmdbjni/wiki/Building-from-source) on wiki.
 
 ### Usage
 
@@ -266,7 +283,7 @@ The safest (and least efficient) approach for interacting with LMDB JNI is using
        // read a position in buffer
        cursor.keyByte(0);
        cursor.valByte(0);
-     } while(cursor.next());
+     } while (cursor.next());
    }
 
    // iterate from last item and backwards
@@ -275,7 +292,7 @@ The safest (and least efficient) approach for interacting with LMDB JNI is using
        // copy entire buffer
        cursor.keyBytes();
        cursor.valBytes();
-     } while(cursor.prev());
+     } while (cursor.prev());
    }
    
    // find entry matching exactly the provided key
@@ -319,4 +336,4 @@ The safest (and least efficient) approach for interacting with LMDB JNI is using
 ```
 ### License
 
-This project is licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html) but the binary jar it produces also includes `liblmdb` library version 0.9.14 of the OpenLDAP project which is licensed under the [The OpenLDAP Public License](http://www.openldap.org/software/release/license.html).
+This project is licensed under the [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0.html) but the binary jar it produces also includes `liblmdb` library of the OpenLDAP project which is licensed under the [The OpenLDAP Public License](http://www.openldap.org/software/release/license.html).

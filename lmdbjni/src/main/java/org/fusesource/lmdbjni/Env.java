@@ -300,6 +300,13 @@ public class Env extends NativeObject implements Closeable {
   }
 
   /**
+   * @see org.fusesource.lmdbjni.Env#setMapSize(long)
+   */
+  public void setMapSize(long size, ByteUnit unit) {
+    checkErrorCode(mdb_env_set_mapsize(pointer(), unit.toBytes(size)));
+  }
+
+  /**
    * <p>
    *  Set the maximum number of named databases for the environment.
    * </p>

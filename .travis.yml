@@ -1,11 +1,45 @@
 language: java
-jdk:
-  - oraclejdk8
+os:
+  - linux
+  - osx
+
 branches:
   except:
     - /.*test$/
-before_script: sudo apt-get install build-essential automake1.10 libtool
-script: "mvn install -P linux64"
+
+env:
+  global:
+    - secure: "HZ7J4B0hSDB2H6ljNXYp7LKgFAA3TUFF22qlSVBiI8Qb3dChwM6t/sNVhQnMKfTREOinpvLOt9rDwHBz1ysPtP+r0iqQyDo5GQDTyTXkFskQFO4myelOamZguJQu+bNTQgKHoF1vbFTysC5mpcInYhcu5veLkgH1PRgNFQcqles="
+    - secure: "CVY1NoFW3e3Hfvgvu2mMC4vaQdmPmyHvuFzqqGlpdH3fdMdqG1xzHi+oXv0gK3tbxB0JNfXXvIiNXpGZ06nGcvQYGIRdRU3armJ3P3zv8KXrhitiv1HS08K4pMzgv9+uVwTdxgC0np5tVWQDvV2MSd424ykZrvR07tm2JWxIybU="
+  matrix:
+    - CUSTOM_JDK="default"
+    - CUSTOM_JDK="oraclejdk8"
+    - CUSTOM_JDK="oraclejdk7"
+    - CUSTOM_JDK="openjdk7"
+
+matrix:
+  exclude:
+     # On OSX, run with default JDK only.
+     - os: osx
+       env: CUSTOM_JDK="oraclejdk8"
+     - os: osx
+       env: CUSTOM_JDK="oraclejdk7"
+     - os: osx
+       env: CUSTOM_JDK="openjdk7"
+     # On Linux, run with specific JDKs only.
+     - os: linux
+       env: CUSTOM_JDK="default"
+
+before_install:
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then export JAVA_HOME=$(/usr/libexec/java_home); fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then jdk_switcher use "$CUSTOM_JDK"; fi
+
+before_script: 
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then sudo apt-get install build-essential automake1.10 libtool; fi
+
+script: 
+  - if [ "$TRAVIS_OS_NAME" == "osx" ]; then mvn install -P osx64; fi
+  - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mvn install -P linux64; fi
 
 after_success:
   - mvn -P linux64 jacoco:report coveralls:report
