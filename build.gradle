@@ -1,5 +1,5 @@
 group = "com.headuck.lmdbjni"
-version = "0.4.7"
+version = "0.4.8"
 description = "lmdbjni is a jni library for accessing lmdb."
 
 ext {

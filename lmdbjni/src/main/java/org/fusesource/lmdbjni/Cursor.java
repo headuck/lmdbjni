@@ -284,7 +284,7 @@ public class Cursor extends NativeObject implements Closeable {
     return mdb_cursor_put_address(pointer(), bufferAddress, bufferAddress + 2 * Unsafe.ADDRESS_SIZE, flags);
   }
 
-  private byte[] put(NativeBuffer keyBuffer, NativeBuffer valueBuffer, int flags) {
+  public byte[] put(NativeBuffer keyBuffer, NativeBuffer valueBuffer, int flags) {
     return put(new Value(keyBuffer), new Value(valueBuffer), flags);
   }
 

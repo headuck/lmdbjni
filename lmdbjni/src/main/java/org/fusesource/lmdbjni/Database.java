@@ -645,7 +645,7 @@ public class Database extends NativeObject implements Closeable {
     }
   }
 
-  private boolean delete(Transaction tx, NativeBuffer keyBuffer, NativeBuffer valueBuffer) {
+  public boolean delete(Transaction tx, NativeBuffer keyBuffer, NativeBuffer valueBuffer) {
     return delete(tx, new Value(keyBuffer), Value.create(valueBuffer));
   }
 

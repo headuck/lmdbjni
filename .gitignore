@@ -15,6 +15,7 @@ eclipse-classes
 test-data
 *.releaseBackup
 release.properties
+local.properties
 cov-int
 *.tgz
 .gradle
