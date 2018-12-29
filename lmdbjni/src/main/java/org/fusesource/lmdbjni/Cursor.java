@@ -288,6 +288,10 @@ public class Cursor extends NativeObject implements Closeable {
     return put(new Value(keyBuffer), new Value(valueBuffer), flags);
   }
 
+  public byte[] put(NativeBuffer keyBuffer, int keyLength, NativeBuffer valueBuffer, int valueLength, int flags) {
+    return put(new Value(keyBuffer, keyLength), new Value(valueBuffer, valueLength), flags);
+  }
+
   private byte[] put(Value keySlice, Value valueSlice, int flags) {
     mdb_cursor_put(pointer(), keySlice, valueSlice, flags);
     return valueSlice.toByteArray();
@@ -297,7 +301,7 @@ public class Cursor extends NativeObject implements Closeable {
   /**
    * Just reserve space for data in the database, don't copy it.
    *
-   * @return a pointer to the reserved space.
+   * @return a pointer to the reserved   space.
    */
   public DirectBuffer reserve(DirectBuffer key, int size) {
     checkArgNotNull(key, "key");

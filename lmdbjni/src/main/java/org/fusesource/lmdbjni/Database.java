@@ -649,6 +649,13 @@ public class Database extends NativeObject implements Closeable {
     return delete(tx, new Value(keyBuffer), Value.create(valueBuffer));
   }
 
+  public boolean delete(Transaction tx, NativeBuffer keyBuffer, int keyLength, NativeBuffer valueBuffer, int valueLength) {
+    if (valueBuffer == null) {
+      return delete(tx, new Value(keyBuffer, keyLength), null);
+    }
+    return delete(tx, new Value(keyBuffer, keyLength), new Value(valueBuffer, valueLength));
+  }
+
   private boolean delete(Transaction tx, Value keySlice, Value valueSlice) {
     int rc = mdb_del(tx.pointer(), pointer(), keySlice, valueSlice);
     if (rc == MDB_NOTFOUND) {
